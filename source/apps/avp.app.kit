@@ -1,0 +1,230 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+title = "AVP Editor"
+version = "0.1.0"
+description = """AVP Editor with CloudXR 6.0 support — ported from kit-avp-107.3-sigg2025."""
+keywords = ["app"]
+template_name = "kit_base_editor"
+
+
+[dependencies]
+"omni.activity.profiler" = {} # For showing RTX loading progress
+"omni.activity.pump" = {} # For showing RTX loading progress
+"omni.anim.curve.core" = {} # Runtime support for animcurves
+"omni.graph.action" = {} # Action graph runtime
+"omni.graph.core" = {} # Omni Graph runtime
+"omni.graph.nodes" = {} # Action graph nodes
+"omni.graph.scriptnode" = {} # Scriptnode support
+"omni.graph.ui_nodes" = {} # Action graph ui nodes
+"omni.hydra.engine.stats" = {}  # Load the stats HUD (resolution, fps, etc..)
+"omni.hydra.rtx" = {}  # Viewport renderer
+"omni.hydra.usdrt_delegate" = {}  # Required for FabricSceneDelegate
+"omni.resourcemonitor" = {}  # Needed for Fabric scene delegate
+"omni.kit.developer.bundle" = {}
+"omni.kit.mainwindow" = {}  # Main uiapp
+"omni.kit.manipulator.camera" = {}  # Load the camera-manipulator (navigation)
+"omni.kit.manipulator.prim" = {}  # Load the prim-manipulator (translate, rotate, scale)
+"omni.kit.manipulator.selection" = {}  # Load the selection-manipulator (selectable prims)
+"omni.kit.material.library" = {} # Create and assign materials.
+"omni.kit.menu.common" = { order = 1000 } # Common menu library.
+"omni.kit.menu.create" = {} # Create menu
+"omni.kit.menu.edit" = {}  # Edit menu
+"omni.kit.menu.file" = {}  # File menu
+"omni.kit.property.bundle" = {} # all the property editors
+"omni.kit.raycast.query" = {} # RTX Raycast Query
+"omni.kit.stage_template.core" = {}  # For creating new empty stages
+"omni.kit.telemetry" = {} # Telemetry
+"omni.kit.tool.asset_importer" = {} # Add Asset Importer functionality.
+"omni.kit.tool.collect" = {} # USD Collect tool
+"omni.kit.viewport.legacy_gizmos" = {}  # Load the legacy grid and gizmo drawing for now
+"omni.kit.viewport.menubar.camera" = {}  # Load the view-from-camera menu
+"omni.kit.viewport.menubar.display" = {}  # Load the display type menu
+"omni.kit.viewport.menubar.lighting" = {}  # Load the viewport settings menu
+"omni.kit.viewport.menubar.render" = {}  # Load the renderer selection menu
+"omni.kit.viewport.menubar.settings" = {}  # Load the viewport settings menu
+"omni.kit.viewport.ready" = {} # Show RTX loading information during startup
+"omni.kit.viewport.scene_camera_model" = {} # Sync camera to scene UI
+"omni.kit.viewport.window" = {}  # Load the actual ViewportWindow extension
+"omni.kit.window.console" = {}  # Console/log
+"omni.kit.window.content_browser" = {} # Add content browser to UI
+"omni.kit.window.property" = {} # Property editor window
+"omni.kit.window.stage" = {}  # Stage tree
+"omni.kit.window.status_bar" = {}  # Status Bar
+"omni.kit.window.toolbar" = {}  # Manipular Toolbar
+"omni.physx.stageupdate" = {} # Physics runtime support
+"omni.rtx.settings.core" = {} # RTX Settings
+"omni.uiaudio" = {} # for audio playback.
+"omni.usd.metrics.assembler.ui" = {}
+"omni.usd.schema.metrics.assembler" = {}
+"omni.warp.core" = {} # Warp support
+
+# XR extension bundle for AVP development (CloudXR 6.0 on Kit 109.x)
+"omni.kit.xr.bundle.apple_vision_pro" = {}
+"omni.kit.xr.cloudxr" = {}  # Need 6.0.2 to match client; swap manually after build
+
+# GDN Publishing Extension
+"omni.configurator_publisher" = {}
+
+# Environment Core
+"omni.kit.environment.core" = {}
+
+"omni.mdl" = {}
+"omni.kit.usd.mdl" = {}
+"omni.kit.browser.material" = {}
+
+# Action Graph
+"omni.graph.bundle.action" = {}
+"omni.graph.window.action" = {}
+
+# Custom extensions (ported from kit-avp-107.3-sigg2025)
+"vfi.message.bus" = {}
+"vfi.interaction" = {order = 1000}
+"configurator.message.bus" = {}
+
+
+[settings]
+exts."omni.kit.material.library".ui_show_list = ["OmniPBR", "OmniGlass", "OmniSurface", "USD Preview Surface"]
+exts."omni.rtx.window.settings".window_menu = "Window"
+exts."omni.kit.viewport.menubar.lighting".defaultRigIgnorePattern = ""
+exts."omni.kit.viewport.window".windowMenu.entryCount = 1
+exts."omni.kit.viewport.window".windowMenu.label=""
+renderer.gpuEnumeration.glInterop.enabled = false
+renderer.asyncInit = true
+rtx.ecoMode.enabled = true
+rtx.hydra.mdlMaterialWarmup = true
+rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+rtx.hydra.minFreeDeviceMemory = 3000
+rtx-transient.hydra.conservativeMemoryLimits = true
+rtx-transient.hydra.maxInstanceCount = 12000000
+omnihydra.parallelHydraSprimSync = true
+
+# XR Settings for AVP development (109.x API)
+xr.depth.aov = "GBufferDepth"
+xr.simulatedxr.enabled = true
+xr.ui.enabled = true
+
+# Enable AR profile with CloudXR 6.0 via OpenXR
+defaults.xr.activeProfile = "ar"
+defaults.xr.supportedProfiles = ["ar", "vr"]
+defaults.xr.system.display = "OpenXR"
+defaults.xr.system.openxr.runtime = "cloudxr"
+defaults.xr.profile.ar.renderQuality = "off"
+xr.openxr.preferNVOpaqueDataChannel = true
+
+# Performance Settings
+persistent.renderer.raytracingOmm.enabled = true
+rtx-transient.resourcemanager.enableTextureStreaming = false
+persistent.rtx.sceneDb.allowDuplicateAhsInvocation = false
+
+# Set near clipping plane for AR to 0.18 meters
+persistent.xr.profile.ar.render.nearPlane = 0.18
+
+[settings.app]
+useFabricSceneDelegate = true
+content.emptyStageOnStart = false  # Disabled: avoids startup race where viewport renders before cameras exist
+font.file = "${fonts}/OpenSans-SemiBold.ttf"
+font.size = 16
+hangDetector.enabled = true
+hangDetector.timeout = 120
+renderer.skipWhileMinimized = true
+window.title = "AVP Editor"
+
+[settings.app."omni.usd"]
+loadRenderSettingsFromUsdStage = false  # Prevent race with FabricSceneDelegate on stage init
+
+[settings.app.environment]
+name = "AVP Editor"
+
+
+[settings.app.viewport.defaults]
+fillViewport = true
+
+
+[settings.telemetry]
+enableAnonymousData = true
+enableAnonymousAppName = true
+
+
+[[test]]
+args = [
+	"--/app/file/ignoreUnsavedOnExit=true"
+]
+
+[template]
+type = "ApplicationTemplate"
+
+
+########################################################################################################################
+# BEGIN GENERATED PART (Remove from 'BEGIN' to 'END' to regenerate)
+########################################################################################################################
+
+# Kit SDK Version: 109.0.3+production.263267.62477c11.gl
+
+# Version lock for all dependencies:
+[settings.app.exts]
+folders.'++' = [
+	"${app}/../exts",
+	"${app}/../extscache/"
+]
+enabled = [
+	"omni.anim.curve.core-1.5.3",
+	"omni.asset_validator.core-1.9.2",
+	"omni.configurator_publisher-109.0.4",
+	"omni.convexdecomposition-109.0.10",
+	"omni.graph.action-2.0.0",
+	"omni.graph.action_nodes-2.0.3",
+	"omni.graph.action_nodes_core-2.0.1",
+	"omni.graph.bundle.action-3.0.1",
+	"omni.graph.nodes-2.1.6",
+	"omni.graph.nodes_core-2.0.3",
+	"omni.graph.scriptnode-2.1.2",
+	"omni.graph.ui-2.1.8",
+	"omni.graph.ui_nodes-2.0.6",
+	"omni.graph.window.action-2.2.1",
+	"omni.graph.window.core-3.1.2",
+	"omni.kit.asset_converter-5.1.1",
+	"omni.kit.browser.core-2.3.17",
+	"omni.kit.browser.folder.core-1.12.1",
+	"omni.kit.browser.material-1.6.5",
+	"omni.kit.debug.settings-1.0.2",
+	"omni.kit.dev.utilities.bundle-0.2.1",
+	"omni.kit.developer.bundle-0.2.0",
+	"omni.kit.environment.core-1.4.1",
+	"omni.kit.graph.delegate.default-1.2.5",
+	"omni.kit.graph.delegate.modern-1.10.11",
+	"omni.kit.graph.editor.core-1.5.4",
+	"omni.kit.graph.usd.commands-1.3.2",
+	"omni.kit.graph.widget.variables-2.1.1",
+	"omni.kit.tool.asset_importer-5.1.3",
+	"omni.kit.viewport.menubar.lighting-107.3.2",
+	"omni.kit.widget.sliderbar-1.1.0",
+	"omni.kit.widget.zoombar-1.0.7",
+	"omni.kit.xr.cloudxr-6.0.5",
+	"omni.kvdb-109.0.10",
+	"omni.localcache-109.0.10",
+	"omni.mesh_tools.libs-109.0.10",
+	"omni.physx-109.0.10",
+	"omni.physx.cooking-109.0.10",
+	"omni.physx.foundation-109.0.10",
+	"omni.physx.stageupdate-109.0.10",
+	"omni.scene.optimizer.core-109.0.3",
+	"omni.usd.metrics.assembler-109.0.0",
+	"omni.usd.metrics.assembler.ui-109.0.0",
+	"omni.usd.schema.metrics.assembler-109.0.0",
+	"omni.usd.schema.physx-109.0.10",
+	"omni.usdphysics-109.0.10",
+	"omni.warp.core-1.10.1",
+]
+
+########################################################################################################################
+# END GENERATED PART
+########################################################################################################################

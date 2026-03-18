@@ -1,0 +1,62 @@
+{
+    "Ragnarok": {
+        "VariantSet": {
+            "Option": {
+                "PrimPath": "/World/Dataset/Ragnarok/Auto_Mats/AUTOMOTIVE_MATERIALS/Carpaint",
+                "VariantSetName": "Carpaint_Color_Variant"
+            },
+            "Accessory": {
+                "PrimPath": "/World/Dataset/Ragnarok/Tires",
+                "VariantSetName": "Rim_Variant_Type"
+            },
+            "Style": {
+                "PrimPath": "/World/Dataset/Ragnarok/Koenigsegg_Ragnarok",
+                "VariantSetName": "Roof_On_Off"
+            }
+        },
+        "Option": {
+            "Option 1": "Nvidia_Green",
+            "Option 2": "Blue",
+            "Option 3": "Orange"
+        },
+        "Accessory": {
+            "Accessory 1": "Rim1",
+            "Accessory 2": "Rim2",
+            "Accessory 3": "Rim3"
+        },
+        "Style": {
+            "Style 1": "On",
+            "Style 2": "Off"
+        }
+    },
+    "Concept": {
+        "VariantSet": {
+            "Option": {
+                "PrimPath": "/World/Dataset/ConfigurableAssets/ConceptCar/Looks",
+                "VariantSetName": "Carpaint"
+            },
+            "Accessory": {
+                "PrimPath": "/World/Dataset/ConfigurableAssets/ConceptCar/Looks/Wheel_Mats",
+                "VariantSetName": "Wheel_Colors"
+            },
+            "Style": {
+                "PrimPath": "/World/Dataset/ConfigurableAssets/ConceptCar/Looks/lightStripAMat",
+                "VariantSetName": "Light_strip_color"
+            }
+        },
+        "Option": {
+            "Option 1": "Nvidia_Green_Black",
+            "Option 2": "Hornet",
+            "Option 3": "BlueSilver"
+        },
+        "Accessory": {
+            "Accessory 1": "Black",
+            "Accessory 2": "NvidiaSet",
+            "Accessory 3": "AquaGlow"
+        },
+        "Style": {
+            "Style 1": "NvidiaGreen",
+            "Style 2": "Off"
+        }
+    }
+}
