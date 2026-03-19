@@ -162,6 +162,12 @@ args = [
 [template]
 type = "ApplicationTemplate"
 
+# Extension search paths — placed above GENERATED PART so rebuilds don't overwrite
+[settings.app.exts]
+folders.'++' = [
+	"${app}/../exts",
+	"${app}/../extscache/"
+]
 
 ########################################################################################################################
 # BEGIN GENERATED PART (Remove from 'BEGIN' to 'END' to regenerate)
@@ -171,10 +177,6 @@ type = "ApplicationTemplate"
 
 # Version lock for all dependencies:
 [settings.app.exts]
-folders.'++' = [
-	"${app}/../exts",
-	"${app}/../extscache/"
-]
 enabled = [
 	"omni.anim.curve.core-1.5.3",
 	"omni.asset_validator.core-1.9.2",
