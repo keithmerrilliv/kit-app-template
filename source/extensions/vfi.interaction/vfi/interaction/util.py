@@ -9,16 +9,16 @@ import omni
 from omni.kit.viewport.utility import get_active_viewport_window
 
 
-def get_world_position(path: str):
+def get_world_position(prim):
     """Get the world position of the prim.
 
     Args:
-            path: Path of a prim.
+            prim: A Usd.Prim to get the world position of.
 
     Returns:
             Gf.Vec3d: The world position of the prim.
     """
-    world_transform = omni.usd.get_world_transform_matrix(path)
+    world_transform = omni.usd.get_world_transform_matrix(prim)
     world_position = world_transform.ExtractTranslation()
     return world_position
 
@@ -50,93 +50,56 @@ def compute_bbox(prim: Usd.Prim) -> Gf.Range3d:
 
 def get_prim_full_transform(prim_path):
     """Get the prim transform, converting to Y-up if scene is Z-up
-    and converting from Omniverse units (cm) to RealityKit units (m).
+    and converting from stage units to meters for RealityKit.
 
     Args:
         prim_path (str): Path to the prim
 
     Returns:
-        list: Camera transform matrix elements in RealityKit coordinate system (meters)
+        list: 16-element matrix for RealityKit (USD rows become simd columns)
     """
-
-    # Get stage and camera prim
     stage = omni.usd.get_context().get_stage()
     prim = stage.GetPrimAtPath(prim_path)
     if not prim:
         return None
 
-    # Get camera transform using UsdGeom
-    camera_xformable = UsdGeom.Xformable(prim)
-    world_transform = camera_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    xformable = UsdGeom.Xformable(prim)
+    ov_matrix = Gf.Matrix4d(xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default()))
 
-    # Convert to Gf.Matrix4d for easier manipulation
-    ov_matrix = Gf.Matrix4d(world_transform)
+    # Extract translation and rotation separately to avoid RemoveScaleShear
+    # interaction issues — build the result from clean components
+    raw_translation = ov_matrix.ExtractTranslation()
+    meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
+    translation = Gf.Vec3d(
+        raw_translation[0] * meters_per_unit,
+        raw_translation[1] * meters_per_unit,
+        raw_translation[2] * meters_per_unit,
+    )
+
+    # Extract rotation only (strip translation before extracting)
+    rot_matrix = Gf.Matrix4d(ov_matrix)
+    rot_matrix.SetTranslateOnly(Gf.Vec3d(0, 0, 0))
 
     up_axis = get_scene_up_axis()
-
-    # Create the output matrix
-    result_matrix = Gf.Matrix4d()
-
-    # Extract components from original matrix
-    raw_translation = ov_matrix.ExtractTranslation()
-    translation = needs_cm_to_m_conversion(stage, raw_translation)
-    rotation = ov_matrix.RemoveScaleShear()
-
-    if not hasattr(get_prim_full_transform, '_logged'):
-        get_prim_full_transform._logged = True
-        carb.log_warn(f"[DIAG] Camera prim: {prim_path}")
-        carb.log_warn(f"[DIAG] Camera raw translation (stage units): {raw_translation}")
-        carb.log_warn(f"[DIAG] Camera translation (meters): {translation}")
-        carb.log_warn(f"[DIAG] Scene up axis: {up_axis}")
-
     if up_axis == UsdGeom.Tokens.z:
-        # For Z-up, we need a coordinate conversion
-        # X → X, Y → Z, Z → -Y
+        # Z-up to Y-up: X→X, Z→Y, -Y→Z
+        result_translation = Gf.Vec3d(translation[0], translation[2], -translation[1])
 
-        # Convert translation to meters and switch axes
-        result_translation = Gf.Vec3d(
-            translation[0],      # X stays as X
-            translation[2],     # -Z becomes Y
-            -translation[1]       # Y becomes Z
-        )
-
-        # Create rotation conversion matrix (Z-up to Y-up)
         conversion = Gf.Matrix4d(
-            1.0, 0.0, 0.0, 0.0,   # X remains X
-            0.0, 0.0, -1.0, 0.0,   # Y becomes Z
-            0.0, 1.0, 0.0, 0.0,  # Z becomes -Y
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, -1.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 1.0
         )
-
-        # Apply conversion to rotation
-        result_rotation = rotation * conversion
+        rot_matrix = rot_matrix * conversion
     else:
-        # For Y-up, no axis conversion needed
-        result_translation = Gf.Vec3d(
-            translation[0],
-            translation[1],
-            translation[2]
-        )
-        result_rotation = rotation
+        result_translation = translation
 
-    # Set the translation in the result matrix
-    result_matrix = result_rotation
-    result_matrix.SetTranslateOnly(result_translation)
+    # Build final matrix: rotation + translation
+    rot_matrix.SetTranslateOnly(result_translation)
 
-    if not hasattr(get_prim_full_transform, '_logged_result'):
-        get_prim_full_transform._logged_result = True
-        carb.log_warn(f"[DIAG] Result translation (Y-up, meters): {result_translation}")
-        carb.log_warn(f"[DIAG] Result matrix row3 (translation row): {result_matrix[3][0]}, {result_matrix[3][1]}, {result_matrix[3][2]}, {result_matrix[3][3]}")
-
-    # Serialize: output USD row-major, which RealityKit reads as column-major.
-    # This correctly transposes the row-vector convention (USD) to column-vector
-    # convention (RealityKit/simd), placing translation in simd column 3.
-    matrix = []
-    for col in range(4):
-        for row in range(4):
-            matrix.append(result_matrix[col][row])
-
-    return matrix
+    # Serialize: USD rows → simd columns (transposes row-vector to column-vector)
+    return [rot_matrix[row][col] for row in range(4) for col in range(4)]
 
 def get_camera_transform():
     """Get the current viewport camera transform, converting to Y-up if scene is Z-up
@@ -183,7 +146,7 @@ def calculate_bounding_box_info(prim_path, is_z_up=False):
         bbox_max = needs_cm_to_m_conversion(stage, bbox.GetMax())
         bbox_center = needs_cm_to_m_conversion(stage, bbox.GetMidpoint())
 
-        bbox_world_position = get_world_position(prim_path)
+        bbox_world_position = get_world_position(prim)
         bbox_world_position = needs_cm_to_m_conversion(stage, bbox_world_position)
         bbox_dimentions = tuple(map(lambda min, max: max - min, bbox_min, bbox_max))
 
