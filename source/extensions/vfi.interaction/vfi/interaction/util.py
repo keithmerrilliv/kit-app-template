@@ -78,8 +78,14 @@ def get_prim_full_transform(prim_path):
     result_matrix = Gf.Matrix4d()
 
     # Extract components from original matrix
-    translation = needs_cm_to_m_conversion(stage, ov_matrix.ExtractTranslation())
+    raw_translation = ov_matrix.ExtractTranslation()
+    translation = needs_cm_to_m_conversion(stage, raw_translation)
     rotation = ov_matrix.RemoveScaleShear()
+
+    carb.log_info(f"[DIAG] Camera prim: {prim_path}")
+    carb.log_info(f"[DIAG] Camera raw translation (stage units): {raw_translation}")
+    carb.log_info(f"[DIAG] Camera translation (meters): {translation}")
+    carb.log_info(f"[DIAG] Scene up axis: {up_axis}")
 
     if up_axis == UsdGeom.Tokens.z:
         # For Z-up, we need a coordinate conversion
@@ -115,7 +121,12 @@ def get_prim_full_transform(prim_path):
     result_matrix = result_rotation
     result_matrix.SetTranslateOnly(result_translation)
 
-    # RealityKit expects matrices in column-major order
+    carb.log_info(f"[DIAG] Result translation (Y-up, meters): {result_translation}")
+    carb.log_info(f"[DIAG] Result matrix row3 (translation row): {result_matrix[3][0]}, {result_matrix[3][1]}, {result_matrix[3][2]}, {result_matrix[3][3]}")
+
+    # Serialize: output USD row-major, which RealityKit reads as column-major.
+    # This correctly transposes the row-vector convention (USD) to column-vector
+    # convention (RealityKit/simd), placing translation in simd column 3.
     matrix = []
     for col in range(4):
         for row in range(4):
