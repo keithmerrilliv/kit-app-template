@@ -69,6 +69,7 @@ def get_prim_full_transform(prim_path):
     # Extract translation and rotation separately to avoid RemoveScaleShear
     # interaction issues — build the result from clean components
     raw_translation = ov_matrix.ExtractTranslation()
+    carb.log_warn(f"[DIAG] prim={prim_path} raw_translation={raw_translation} up={get_scene_up_axis()} mpu={UsdGeom.GetStageMetersPerUnit(stage)}")
     meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
     translation = Gf.Vec3d(
         raw_translation[0] * meters_per_unit,
@@ -102,24 +103,58 @@ def get_prim_full_transform(prim_path):
     return [rot_matrix[row][col] for row in range(4) for col in range(4)]
 
 def get_camera_transform():
-    """Get the current viewport camera transform, converting to Y-up if scene is Z-up
-    and converting from Omniverse units (cm) to RealityKit units (m).
+    """Get the current viewport camera transform from the render pipeline,
+    converting to Y-up if scene is Z-up and to meters for RealityKit.
+
+    Uses viewport_api.transform instead of the USD prim because the XR
+    camera position is managed by the render pipeline, not USD xform ops.
 
     Returns:
-        list: Camera transform matrix elements in RealityKit coordinate system (meters)
+        list: 16-element matrix for RealityKit (USD rows become simd columns)
     """
     viewport_window = get_active_viewport_window()
     if not viewport_window:
         return None
 
     viewport_api = viewport_window.viewport_api
-    camera_path = viewport_api.get_active_camera()
-    if not camera_path:
+    # viewport_api.transform is the world-space camera matrix from the renderer,
+    # which includes XR headset position that the USD prim doesn't have.
+    ov_matrix = Gf.Matrix4d(viewport_api.transform)
+
+    stage = omni.usd.get_context().get_stage()
+    if not stage:
         return None
 
-    matrix = get_prim_full_transform(camera_path)
+    raw_translation = ov_matrix.ExtractTranslation()
+    meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
+    translation = Gf.Vec3d(
+        raw_translation[0] * meters_per_unit,
+        raw_translation[1] * meters_per_unit,
+        raw_translation[2] * meters_per_unit,
+    )
 
-    return matrix
+    # Extract rotation only (strip translation)
+    rot_matrix = Gf.Matrix4d(ov_matrix)
+    rot_matrix.SetTranslateOnly(Gf.Vec3d(0, 0, 0))
+
+    up_axis = get_scene_up_axis()
+    if up_axis == UsdGeom.Tokens.z:
+        result_translation = Gf.Vec3d(translation[0], translation[2], -translation[1])
+        conversion = Gf.Matrix4d(
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, -1.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0
+        )
+        rot_matrix = rot_matrix * conversion
+    else:
+        result_translation = translation
+
+    rot_matrix.SetTranslateOnly(result_translation)
+
+    carb.log_warn(f"[DIAG] camera transform: raw={raw_translation} meters={result_translation}")
+
+    return [rot_matrix[row][col] for row in range(4) for col in range(4)]
 
 def calculate_bounding_box_info(prim_path, is_z_up=False):
     """Calculate bounding box information for a prim.
@@ -142,12 +177,12 @@ def calculate_bounding_box_info(prim_path, is_z_up=False):
         # Compute the bounding box
         # Original Y-up calculations
         bbox = compute_bbox(prim)
-        bbox_min = needs_cm_to_m_conversion(stage, bbox.GetMin())
-        bbox_max = needs_cm_to_m_conversion(stage, bbox.GetMax())
-        bbox_center = needs_cm_to_m_conversion(stage, bbox.GetMidpoint())
+        bbox_min = stage_units_to_meters(stage, bbox.GetMin())
+        bbox_max = stage_units_to_meters(stage, bbox.GetMax())
+        bbox_center = stage_units_to_meters(stage, bbox.GetMidpoint())
 
         bbox_world_position = get_world_position(prim)
-        bbox_world_position = needs_cm_to_m_conversion(stage, bbox_world_position)
+        bbox_world_position = stage_units_to_meters(stage, bbox_world_position)
         bbox_dimentions = tuple(map(lambda min, max: max - min, bbox_min, bbox_max))
 
         # Calculate box dimensions and center position
@@ -317,23 +352,14 @@ def convert_client_delta_to_stage(dx, dy, dz, stage):
         return Gf.Vec3d(sdx, sdy, sdz)
 
 
-def needs_cm_to_m_conversion(stage, value):
-    """Convert value from cm to m if stage uses cm as units.
+def stage_units_to_meters(stage, value):
+    """Convert a 3-component value from stage units to meters.
 
     Args:
         stage: USD stage
-        value: Value to potentially convert
+        value: A Vec3d or tuple in stage units
     Returns:
-        Converted value if needed, original value otherwise
+        tuple: Value converted to meters
     """
-    return cm_to_m(value) if UsdGeom.GetStageMetersPerUnit(stage) == 0.01 else value
-
-def cm_to_m(value):
-    """Convert centimeters to meters.
-
-    Args:
-        value (float): Value in centimeters
-    Returns:
-        float: Value in meters
-    """
-    return (value[0] / 100.0, value[1] / 100.0, value[2] / 100.0)
+    mpu = UsdGeom.GetStageMetersPerUnit(stage)
+    return (value[0] * mpu, value[1] * mpu, value[2] * mpu)
