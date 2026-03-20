@@ -152,7 +152,9 @@ def get_camera_transform():
 
     rot_matrix.SetTranslateOnly(result_translation)
 
-    carb.log_warn(f"[DIAG] camera transform: raw={raw_translation} meters={result_translation}")
+    if not hasattr(get_camera_transform, '_logged'):
+        get_camera_transform._logged = True
+        carb.log_warn(f"[DIAG] camera transform: raw={raw_translation} meters={result_translation}")
 
     return [rot_matrix[row][col] for row in range(4) for col in range(4)]
 

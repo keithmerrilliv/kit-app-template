@@ -23,7 +23,7 @@ class ProxyPrimSample(omni.ext.IExt):
         self.observed_events = []
         self._viewport_interface = None
         self._camera_sub = None
-        self._set_event_alias(["omni.kit.cloudxr.send_message", "initial_prim_path", "write_prim_transformation_extension", "request_camera_transform"])
+        self._set_event_alias(["omni.kit.cloudxr.send_message", "initial_prim_path", "write_prim_transformation_extension", "request_camera_transform", "discover_prims"])
         self._object_change_sub = None
         self.identity_matrix_list =  [
             1.0, 0.0, 0.0, 0.0,
@@ -84,6 +84,52 @@ class ProxyPrimSample(omni.ext.IExt):
 
         # Send the measured bbox and position info to the client
         send_message_to_client(return_message)
+
+    @staticmethod
+    def on_discover_prims(event: carb.events.IEvent):
+        """Respond to a client request to discover interactive prims in the scene.
+        Scans the stage for Mesh/Xform prims under /World (up to 3 levels deep)
+        and sends their paths to the client.
+        """
+        import omni.usd
+        from pxr import Usd, UsdGeom
+
+        stage = omni.usd.get_context().get_stage()
+        if not stage:
+            return
+
+        discovered = []
+        root = stage.GetPrimAtPath("/World")
+        if not root:
+            # Try stage root if /World doesn't exist
+            root = stage.GetPseudoRoot()
+
+        def scan_prims(prim, depth=0, max_depth=3):
+            if depth > max_depth:
+                return
+            for child in prim.GetChildren():
+                # Skip hidden, internal, and camera prims
+                if child.GetName().startswith("_") or child.GetName().startswith("xr"):
+                    continue
+                if child.IsA(UsdGeom.Xformable) and not child.IsA(UsdGeom.Camera):
+                    # Include prims that have geometry (Mesh) or are Xform groups with children
+                    if child.IsA(UsdGeom.Mesh) or (child.IsA(UsdGeom.Xform) and child.GetChildren()):
+                        discovered.append(str(child.GetPath()))
+                        if len(discovered) >= 20:  # Cap at 20 prims
+                            return
+                if len(discovered) < 20:
+                    scan_prims(child, depth + 1, max_depth)
+
+        scan_prims(root)
+
+        carb.log_warn(f"[discover_prims] Found {len(discovered)} interactive prims")
+        for p in discovered:
+            carb.log_warn(f"  - {p}")
+
+        send_message_to_client({
+            "Type": "discovered_prims",
+            "PrimPaths": discovered
+        })
 
     @staticmethod
     def on_camera_transform_request(event: carb.events.IEvent):
@@ -197,6 +243,10 @@ class ProxyPrimSample(omni.ext.IExt):
         self.observed_events.append(self.event_dispatcher.observe_event(
             event_name="request_camera_transform",
             on_event=self.on_camera_transform_request
+        ))
+        self.observed_events.append(self.event_dispatcher.observe_event(
+            event_name="discover_prims",
+            on_event=self.on_discover_prims
         ))
 
         # Subscribe to camera changes
