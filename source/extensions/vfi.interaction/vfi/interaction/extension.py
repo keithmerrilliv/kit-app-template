@@ -88,8 +88,8 @@ class ProxyPrimSample(omni.ext.IExt):
     @staticmethod
     def on_discover_prims(event: carb.events.IEvent):
         """Respond to a client request to discover interactive prims in the scene.
-        Scans the stage for Mesh/Xform prims under /World (up to 3 levels deep)
-        and sends their paths to the client.
+        Scans the stage for Mesh/Xform prims under /World (up to 2 levels deep)
+        and sends their bbox data using the existing initial_prims_setup format.
         """
         import omni.usd
         from pxr import Usd, UsdGeom
@@ -101,35 +101,37 @@ class ProxyPrimSample(omni.ext.IExt):
         discovered = []
         root = stage.GetPrimAtPath("/World")
         if not root:
-            # Try stage root if /World doesn't exist
             root = stage.GetPseudoRoot()
 
-        def scan_prims(prim, depth=0, max_depth=3):
+        def scan_prims(prim, depth=0, max_depth=2):
             if depth > max_depth:
                 return
             for child in prim.GetChildren():
-                # Skip hidden, internal, and camera prims
                 if child.GetName().startswith("_") or child.GetName().startswith("xr"):
                     continue
                 if child.IsA(UsdGeom.Xformable) and not child.IsA(UsdGeom.Camera):
-                    # Include prims that have geometry (Mesh) or are Xform groups with children
                     if child.IsA(UsdGeom.Mesh) or (child.IsA(UsdGeom.Xform) and child.GetChildren()):
                         discovered.append(str(child.GetPath()))
-                        if len(discovered) >= 20:  # Cap at 20 prims
+                        if len(discovered) >= 10:
                             return
-                if len(discovered) < 20:
+                if len(discovered) < 10:
                     scan_prims(child, depth + 1, max_depth)
 
         scan_prims(root)
 
-        carb.log_warn(f"[discover_prims] Found {len(discovered)} interactive prims")
-        for p in discovered:
-            carb.log_warn(f"  - {p}")
+        carb.log_warn(f"[discover_prims] Found {len(discovered)} prims, sending bbox data")
 
-        send_message_to_client({
-            "Type": "discovered_prims",
-            "PrimPaths": discovered
-        })
+        # Send bbox data using existing initial_prims_setup format
+        is_z_up = get_scene_up_axis() == UsdGeom.Tokens.z
+        for prim_path in discovered:
+            prim, box_string = calculate_bounding_box_info(prim_path, is_z_up)
+            if prim and box_string:
+                return_message = {
+                    "Type": "initial_prims_setup",
+                    "BoundingBox": prim_path + ", " + box_string + ";"
+                }
+                send_message_to_client(return_message)
+                carb.log_warn(f"  Sent bbox for: {prim_path}")
 
     @staticmethod
     def on_camera_transform_request(event: carb.events.IEvent):
