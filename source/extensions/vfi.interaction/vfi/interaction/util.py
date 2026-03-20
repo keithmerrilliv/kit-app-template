@@ -186,6 +186,7 @@ def calculate_bounding_box_info(prim_path, is_z_up=False):
         bbox_dimentions = tuple(map(lambda min, max: max - min, bbox_min, bbox_max))
 
         # Calculate box dimensions and center position
+        carb.log_warn(f"[DIAG] bbox BEFORE conversion: is_z_up={is_z_up} pos={bbox_world_position} center={bbox_center} dims={bbox_dimentions}")
         if is_z_up:
             # Swap Y and Z coordinates to convert from Z-up to Y-up
             bbox_dimentions = (bbox_dimentions[0], bbox_dimentions[2], bbox_dimentions[1])
@@ -193,6 +194,8 @@ def calculate_bounding_box_info(prim_path, is_z_up=False):
 
             # Get world position and swap coordinates
             bbox_world_position = (bbox_world_position[0], bbox_world_position[2], -bbox_world_position[1])
+
+        carb.log_warn(f"[DIAG] bbox AFTER conversion: pos={bbox_world_position} center={bbox_center} dims={bbox_dimentions}")
 
         # Format the bbox info as a string
         box_values = (

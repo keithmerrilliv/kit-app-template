@@ -65,7 +65,9 @@ class ProxyPrimSample(omni.ext.IExt):
         return_message = {"Type": "initial_prims_setup", "BoundingBox": ""}
 
         # Get stage up axis
-        is_z_up = get_scene_up_axis() == UsdGeom.Tokens.z
+        up_axis = get_scene_up_axis()
+        is_z_up = up_axis == UsdGeom.Tokens.z
+        carb.log_warn(f"[DIAG] Prim bbox request: up_axis={up_axis} is_z_up={is_z_up} UsdGeom.Tokens.z={UsdGeom.Tokens.z}")
 
         # Calculate the bounding box and position info for each prim path
         for prim_path in prim_path_list:
