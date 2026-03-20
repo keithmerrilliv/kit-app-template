@@ -88,8 +88,9 @@ class ProxyPrimSample(omni.ext.IExt):
     @staticmethod
     def on_discover_prims(event: carb.events.IEvent):
         """Respond to a client request to discover interactive prims in the scene.
-        Scans the stage for Mesh/Xform prims under /World (up to 2 levels deep)
-        and sends their bbox data using the existing initial_prims_setup format.
+        Scans the stage for meaningful interactive prims — skips lights,
+        cameras, and overly large structural groups. Prefers leaf geometry
+        and mid-level assemblies that represent distinct objects.
         """
         import omni.usd
         from pxr import Usd, UsdGeom
@@ -98,31 +99,57 @@ class ProxyPrimSample(omni.ext.IExt):
         if not stage:
             return
 
+        # Names to skip — structural, lighting, or internal prims
+        SKIP_NAMES = {"Lights", "Cameras", "Environment", "Ground", "Sky",
+                      "Looks", "Materials", "_xr", "xr"}
+        SKIP_PREFIXES = ("_", "xr")
+
         discovered = []
         root = stage.GetPrimAtPath("/World")
         if not root:
             root = stage.GetPseudoRoot()
 
-        def scan_prims(prim, depth=0, max_depth=2):
-            if depth > max_depth:
+        def should_skip(prim):
+            name = prim.GetName()
+            if name in SKIP_NAMES or any(name.startswith(p) for p in SKIP_PREFIXES):
+                return True
+            if prim.IsA(UsdGeom.Camera):
+                return True
+            # Skip pure light prims
+            type_name = prim.GetTypeName()
+            if "Light" in type_name:
+                return True
+            return False
+
+        def scan_prims(prim, depth=0, max_depth=5):
+            if depth > max_depth or len(discovered) >= 15:
                 return
             for child in prim.GetChildren():
-                if child.GetName().startswith("_") or child.GetName().startswith("xr"):
+                if len(discovered) >= 15:
+                    return
+                if should_skip(child):
                     continue
-                if child.IsA(UsdGeom.Xformable) and not child.IsA(UsdGeom.Camera):
-                    if child.IsA(UsdGeom.Mesh) or (child.IsA(UsdGeom.Xform) and child.GetChildren()):
+                if child.IsA(UsdGeom.Xformable):
+                    # Prefer Mesh prims (actual geometry) or Xform groups
+                    # at depth >= 2 (skip top-level structural groups)
+                    if child.IsA(UsdGeom.Mesh):
                         discovered.append(str(child.GetPath()))
-                        if len(discovered) >= 10:
-                            return
-                if len(discovered) < 10:
+                    elif child.IsA(UsdGeom.Xform) and depth >= 2:
+                        # Include mid-level assemblies that have mesh children
+                        has_mesh = any(c.IsA(UsdGeom.Mesh) for c in child.GetAllChildren())
+                        if has_mesh:
+                            discovered.append(str(child.GetPath()))
+                            continue  # Don't recurse into selected assemblies
+                    # Recurse into groups
                     scan_prims(child, depth + 1, max_depth)
 
         scan_prims(root)
 
-        carb.log_warn(f"[discover_prims] Found {len(discovered)} prims, sending bbox data")
+        carb.log_warn(f"[discover_prims] Found {len(discovered)} interactive prims")
 
         # Send bbox data using existing initial_prims_setup format
         is_z_up = get_scene_up_axis() == UsdGeom.Tokens.z
+        sent = 0
         for prim_path in discovered:
             prim, box_string = calculate_bounding_box_info(prim_path, is_z_up)
             if prim and box_string:
@@ -132,6 +159,8 @@ class ProxyPrimSample(omni.ext.IExt):
                 }
                 send_message_to_client(return_message)
                 carb.log_warn(f"  Sent bbox for: {prim_path}")
+                sent += 1
+        carb.log_warn(f"[discover_prims] Sent {sent} prim bbox messages")
 
     @staticmethod
     def on_camera_transform_request(event: carb.events.IEvent):
